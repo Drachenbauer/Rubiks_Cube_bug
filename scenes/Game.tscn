@@ -1,0 +1,146 @@
+[gd_scene load_steps=8 format=2]
+
+[ext_resource path="res://images/all colors.png" type="Texture" id=1]
+
+[sub_resource type="GDScript" id=3]
+script/source = "extends Spatial
+
+
+# Declare member variables here:
+var old_rotation
+var click_position
+var cubies = []
+var solved_positions = []
+
+onready var pivot = $CameraDistance
+onready var camera = $CameraDistance/Camera
+onready var small_cube = $CameraDistance/Cubie
+onready var cube = $Cube/Cubies
+onready var cube_core = $Cube/CollisionBodies/Cube
+
+# Called when the node enters the scene tree for the first time.
+func _ready():
+	pivot.rotation_degrees = Vector3(-37, 45, 0)
+	var q = Quat(pivot.transform.basis)
+	small_cube.transform.basis = Basis(q.inverse())
+	cubies = get_tree().get_nodes_in_group(\"Cubies\")
+	for cubie in cubies:
+		solved_positions.append(cubie.translation)
+	
+
+# Called every frame. 'delta' is the elapsed time since the previous frame.
+func _process(_delta):
+	if Input.is_action_just_pressed(\"rotate_camera\"):
+		old_rotation = pivot.rotation_degrees
+		click_position = get_viewport().get_mouse_position()
+	
+	if Input.is_action_pressed(\"rotate_camera\"):
+		var rot_x = clamp(old_rotation.x - (get_viewport().get_mouse_position().y - click_position.y) / 2, -90, 90)
+		var rot_y = old_rotation.y - (get_viewport().get_mouse_position().x - click_position.x) / 2
+		pivot.rotation_degrees = Vector3(rot_x, rot_y, 0)
+		var q = Quat(pivot.transform.basis)
+		small_cube.transform.basis = Basis(q.inverse())
+		
+
+
+func _on_Yellow_input_event(_camera, event, _position, _normal, _shape_idx):
+	if event is InputEventMouseButton:
+		if event.button_index == 1 and event.pressed:
+			spin_y(1, -90)
+		if event.button_index == 2 and event.pressed:
+			spin_y(1, 90)
+
+
+func spin_y(offset, angle):
+	for cubie in cubies:
+		if int(cubie.translation.y) == offset:
+			cube.remove_child(cubie)
+			cube_core.add_child(cubie)
+	
+	cube_core.rotation_degrees.y += angle
+	
+	for cubie in cubies:
+		if cubie.get_parent() == cube_core:
+			var old_transform = cubie.global_transform
+			cube_core.remove_child(cubie)
+			cube.add_child(cubie)
+			cubie.global_transform = old_transform
+		print(cubie.name, \": \", offset, \" = \", cubie.translation.x, \" -> \", cubie.translation.x == offset)
+	
+	cube_core.rotation_degrees.y -= angle
+
+
+func _on_Yellow_mouse_entered():
+	Input.set_default_cursor_shape(Control.CURSOR_POINTING_HAND)
+
+
+
+func _on_Yellow_mouse_exited():
+	Input.set_default_cursor_shape(Control.CURSOR_ARROW)
+"
+
+[sub_resource type="SpatialMaterial" id=1]
+flags_unshaded = true
+albedo_texture = ExtResource( 1 )
+
+[sub_resource type="CubeMesh" id=4]
+material = SubResource( 1 )
+size = Vector3( 0.4, 0.4, 0.4 )
+
+[sub_resource type="CubeMesh" id=2]
+material = SubResource( 1 )
+size = Vector3( 1, 1, 1 )
+
+[sub_resource type="BoxShape" id=8]
+extents = Vector3( 1.5, 1.5, 1.5 )
+
+[sub_resource type="BoxShape" id=7]
+extents = Vector3( 0.5, 0.1, 0.5 )
+
+[node name="Game" type="Spatial"]
+script = SubResource( 3 )
+
+[node name="CameraDistance" type="Spatial" parent="."]
+transform = Transform( 1, 0, 0, 0, 0.999999, 0, 0, 0, 1, 0, 0, 0 )
+
+[node name="Camera" type="Camera" parent="CameraDistance"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6 )
+
+[node name="Cubie" type="MeshInstance" parent="CameraDistance"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, -1.6, 1.6, 3 )
+mesh = SubResource( 4 )
+skeleton = NodePath("../..")
+material/0 = null
+
+[node name="Cube" type="Spatial" parent="."]
+
+[node name="Cubies" type="Spatial" parent="Cube"]
+
+[node name="Cubie5" type="MeshInstance" parent="Cube/Cubies"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0 )
+mesh = SubResource( 2 )
+skeleton = NodePath("../../..")
+material/0 = null
+
+[node name="Cubie7" type="MeshInstance" parent="Cube/Cubies" groups=["Corner", "Cubies"]]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 1, 1, -1 )
+mesh = SubResource( 2 )
+skeleton = NodePath("../../..")
+material/0 = null
+
+[node name="CollisionBodies" type="Spatial" parent="Cube"]
+
+[node name="Cube" type="StaticBody" parent="Cube/CollisionBodies"]
+
+[node name="CollisionShape" type="CollisionShape" parent="Cube/CollisionBodies/Cube"]
+shape = SubResource( 8 )
+
+[node name="Yellow" type="StaticBody" parent="Cube/CollisionBodies"]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 0 )
+
+[node name="CollisionShape" type="CollisionShape" parent="Cube/CollisionBodies/Yellow"]
+shape = SubResource( 7 )
+
+[connection signal="input_event" from="Cube/CollisionBodies/Yellow" to="." method="_on_Yellow_input_event"]
+[connection signal="mouse_entered" from="Cube/CollisionBodies/Yellow" to="." method="_on_Yellow_mouse_entered"]
+[connection signal="mouse_exited" from="Cube/CollisionBodies/Yellow" to="." method="_on_Yellow_mouse_exited"]
